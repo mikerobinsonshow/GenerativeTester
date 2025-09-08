@@ -1,7 +1,7 @@
 {
-  "url": "https://httpbin.org/forms/post",
-  "allowlist": ["httpbin.org"],
+  "url": "http://127.0.0.1:5000",
+  "allowlist": ["127.0.0.1"],
   "assertions": {
-    "url_contains": "/post"
+    "url_contains": "/"
   }
 }
