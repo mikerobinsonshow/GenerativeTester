@@ -118,7 +118,11 @@ async def run(config_path: str = "config/target.json") -> Dict[str, Any]:
         page = await context.new_page()
 
         await page.goto(target_url)
-        await page.screenshot(path=str(artifacts / "before.png"))
+        try:
+            await page.screenshot(path=str(artifacts / "before.png"), full_page=True)
+        except Exception:
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.screenshot(path=str(artifacts / "before.png"))
 
         log: Dict[str, Any] = {}
         await _fill_page(page, log)
@@ -145,7 +149,11 @@ async def run(config_path: str = "config/target.json") -> Dict[str, Any]:
             attempts += 1
 
         await assert_success(page, config.get("assertions", {}))
-        await page.screenshot(path=str(artifacts / "after.png"))
+        try:
+            await page.screenshot(path=str(artifacts / "after.png"), full_page=True)
+        except Exception:
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.screenshot(path=str(artifacts / "after.png"))
 
         with open(artifacts / "log.json", "w") as f:
             json.dump(log, f, indent=2)
