@@ -7,8 +7,8 @@ object describing all fields that can be filled.  Only very small pieces of the
 real project are implemented – just enough for a proof of concept.
 """
 
-from typing import List, Optional, Dict
-from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 from playwright.async_api import Page
 
 
@@ -19,14 +19,14 @@ class FieldSchema(BaseModel):
     label: Optional[str] = None
     html_type: str
     tag: str
-    constraints: Dict[str, str] = {}
+    constraints: Dict[str, Any] = Field(default_factory=dict)
 
 
 class FormSchema(BaseModel):
     """Schema describing all fields on a page."""
 
     action: Optional[str] = None
-    fields: List[FieldSchema] = []
+    fields: List[FieldSchema] = Field(default_factory=list)
 
 
 async def _get_label(page: Page, element) -> Optional[str]:
