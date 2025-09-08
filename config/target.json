@@ -1,0 +1,7 @@
+{
+  "url": "https://httpbin.org/forms/post",
+  "allowlist": ["httpbin.org"],
+  "assertions": {
+    "url_contains": "/post"
+  }
+}

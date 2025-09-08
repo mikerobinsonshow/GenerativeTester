@@ -1,0 +1,7 @@
+playwright
+faker
+pydantic
+pytest
+pytest-html
+rstr
+python-dateutil
