@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
+import re
+import string
 from pathlib import Path
 from typing import Dict, Any
 from urllib.parse import urlparse
 
+import rstr
 from playwright.async_api import async_playwright
 
 from schema_extractor import extract_form_schema
@@ -43,6 +47,57 @@ async def _fill_page(page, log: Dict[str, Any]):
                 pass
 
 
+async def _handle_errors(page, log: Dict[str, Any]) -> bool:
+    """Fix form fields based on red error messages.
+
+    Returns ``True`` if any field value was changed.
+    """
+
+    error_texts = await page.eval_on_selector_all(
+        "body *",
+        "els => els.filter(e => getComputedStyle(e).color === 'rgb(255, 0, 0)').map(e => e.textContent)",
+    )
+    changed = False
+    for text in error_texts:
+        if not text:
+            continue
+        msg = text.strip()
+        if not msg:
+            continue
+        field_name = None
+        value = None
+        if "must match" in msg:
+            parts = msg.split("must match", 1)
+            field_name = parts[0].strip().lower().replace(" ", "_")
+            pattern = parts[1].strip()
+            regex = pattern.replace("#", r"\d")
+            try:
+                value = rstr.xeger(regex)
+            except Exception:
+                continue
+        elif "must be at most" in msg and "characters" in msg:
+            m = re.match(r"(.+?)\s+must be at most\s+(\d+)\s+characters", msg)
+            if m:
+                field_name = m.group(1).strip().lower().replace(" ", "_")
+                num = int(m.group(2))
+                value = rstr.xeger(r"[A-Za-z]{%d}" % num)
+        elif "must be" in msg and "digits" in msg:
+            m = re.match(r"(.+?)\s+must be\s+(\d+)\s+digits", msg)
+            if m:
+                field_name = m.group(1).strip().lower().replace(" ", "_")
+                num = int(m.group(2))
+                value = "".join(random.choice(string.digits) for _ in range(num))
+        if field_name and value is not None:
+            selector = f"input[name='{field_name}']"
+            try:
+                await page.fill(selector, value)
+                log[field_name] = value
+                changed = True
+            except Exception:
+                pass
+    return changed
+
+
 async def run(config_path: str = "config/target.json") -> Dict[str, Any]:
     """Execute the demo runner and return log data."""
 
@@ -74,12 +129,20 @@ async def run(config_path: str = "config/target.json") -> Dict[str, Any]:
             await next_btn.click()
             await _fill_page(page, log)
 
-        # Submit
+        # Submit and handle validation errors
         submit = await page.query_selector("text=Submit")
         if not submit:
             submit = await page.query_selector("input[type=submit]")
-        if submit:
+        attempts = 0
+        while submit and attempts < 2:
             await submit.click()
+            changed = await _handle_errors(page, log)
+            if not changed:
+                break
+            submit = await page.query_selector("text=Submit")
+            if not submit:
+                submit = await page.query_selector("input[type=submit]")
+            attempts += 1
 
         await assert_success(page, config.get("assertions", {}))
         await page.screenshot(path=str(artifacts / "after.png"))
